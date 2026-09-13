@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL Playground</title>
+<style>
+  :root{
+    --bg: #050505;
+    --panel: #0c0c0c;
+    --panel-2: #131313;
+    --line: #262626;
+    --text: #e6e6e6;
+    --dim: #6e6e6e;
+    --accent: #f2f2f2;
+    --accent-dim: #3a3a3a;
+    --error: #b3524f;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; height:100%; height:100dvh; background:var(--bg); overflow:hidden; }
+  body{
+    font-family: var(--mono);
+    color: var(--text);
+    display:flex;
+    flex-direction:column;
+    height:100%;
+    font-size:13.5px;
+  }
+  header{
+    padding:14px 18px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    flex-shrink:0;
+    flex-wrap:wrap;
+  }
+  header h1{ font-size:14px; font-weight:600; margin:0; letter-spacing:0.02em; color:var(--text); }
+  header h1 span{ color:var(--accent); }
+  header .sub{ color:var(--dim); font-size:12px; }
+
+  .layout{ flex:1; display:flex; min-height:0; }
+  .schema-pane{
+    width:340px;
+    flex-shrink:0;
+    border-right:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    background:var(--panel);
+    min-height:0;
+    overflow-y:auto;
+    overflow-x:hidden;
+    transition: width 0.18s ease;
+  }
+  .schema-pane.collapsed{
+    width:0;
+    border-right:none;
+  }
+  .sidebar-rail{
+    width:22px;
+    flex-shrink:0;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding-top:14px;
+  }
+  .sidebar-rail button{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--dim);
+    width:20px;
+    height:20px;
+    padding:0;
+    font-size:11px;
+    line-height:1;
+    border-radius:3px;
+  }
+  .sidebar-rail button:hover{ color:var(--text); border-color:var(--dim); }
+  .section-head{
+    padding:11px 14px;
+    color:var(--text);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    border-bottom:1px solid var(--line);
+    border-top:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:var(--panel-2);
+  }
+  .schema-pane > .section-head:first-child{ border-top:none; }
+  .section-head button{ font-size:10.5px; padding:4px 9px; }
+
+  #schemaList{ flex-shrink:0; }
+  .table-block{ border-bottom:1px solid var(--line); }
+  .table-name{
+    padding:9px 14px; cursor:pointer; display:flex; justify-content:space-between;
+    align-items:center; color:var(--text); font-weight:600;
+  }
+  .table-name:hover{ background:var(--panel-2); }
+  .table-name .count{ color:var(--dim); font-weight:400; font-size:11px; }
+  .cols{ padding:0 14px 10px 22px; display:none; }
+  .cols.open{ display:block; }
+  .col-row{ padding:2px 0; color:var(--dim); font-size:12px; display:flex; justify-content:space-between; gap:8px; }
+  .col-row .fk{ color: var(--accent); font-size:10px; white-space:nowrap; }
+  .no-schema{ padding:16px 14px; color:var(--dim); font-size:12px; line-height:1.6; }
+
+  .collapse-toggle{
+    background:transparent; border:1px solid var(--line); color:var(--dim);
+    font-size:11px; padding:2px 7px; font-weight:400; line-height:1.4;
+  }
+  .collapse-toggle:hover{ color:var(--text); border-color:var(--dim); }
+  .gemini-block{ padding:10px 14px 14px; overflow:hidden; }
+  .acc-body{ border-bottom:1px solid var(--line); }
+  .acc-body.collapsed{ display:none; }
+  .paste-target{
+    border:1px dashed var(--line); border-radius:3px; padding:6px 9px; margin-top:4px;
+    color:var(--dim); font-size:11px; cursor:text;
+  }
+  .paste-target:focus{ outline:none; border-color:var(--accent-dim); }
+  .gemini-block label{ display:block; color:var(--dim); font-size:11px; margin:8px 0 4px; }
+  .gemini-block label:first-child{ margin-top:0; }
+  .gemini-block input[type=password], .gemini-block input[type=text]{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:12px; padding:7px 9px; border-radius:3px; outline:none;
+  }
+  .gemini-block input:focus{ border-color: var(--accent-dim); }
+  .gemini-block textarea{
+    width:100%; height:70px; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:12px; padding:7px 9px; border-radius:3px; resize:vertical; outline:none;
+  }
+  .gemini-block textarea:focus{ border-color: var(--accent-dim); }
+  .file-row{ display:flex; align-items:center; gap:8px; margin-top:4px; }
+  .file-row input[type=file]{ font-size:11px; color:var(--dim); flex:1; }
+  .file-clear{ font-size:10px; padding:3px 7px; }
+  .thumbs{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .thumb-wrap{ position:relative; width:46px; height:46px; }
+  .thumb-wrap img{
+    width:46px; height:46px; object-fit:cover; border:1px solid var(--line); border-radius:3px; display:block;
+  }
+  .thumb-remove{
+    position:absolute; top:-6px; right:-6px; width:16px; height:16px; padding:0;
+    border-radius:50%; background:var(--panel-2); border:1px solid var(--line); color:var(--dim);
+    font-size:10px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .thumb-remove:hover{ color:var(--error); border-color:var(--error); }
+  .gen-btn{ background:var(--accent); color:#000; margin-top:10px; width:100%; }
+  .gemini-status{ font-size:11px; color:var(--dim); margin-top:8px; min-height:14px; }
+  .gemini-status.error{ color:var(--error); white-space:pre-wrap; }
+  .gemini-status.working{ color:var(--text); }
+
+  .setup-editor{ display:flex; flex-direction:column; flex-shrink:0; }
+  .setup-editor textarea{
+    height:150px; background:var(--panel); border:none; border-bottom:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:11.5px; padding:10px 14px; resize:vertical; outline:none;
+  }
+  .setup-editor .row{ display:flex; gap:8px; padding:8px 14px; }
+
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .editor-wrap{ padding:14px 18px 8px; border-bottom:1px solid var(--line); flex-shrink:0; }
+  textarea{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:13.5px; padding:10px 12px; border-radius:3px; outline:none;
+  }
+  #query{ height:220px; resize:vertical; }
+
+  .code-editor{ position:relative; background:var(--panel); border-radius:3px; }
+  .code-highlight{
+    position:absolute;
+    inset:0;
+    margin:0;
+    padding:10px 12px;
+    font-family:var(--mono);
+    font-size:13.5px;
+    line-height:normal;
+    white-space:pre-wrap;
+    word-wrap:break-word;
+    overflow:hidden;
+    pointer-events:none;
+    color:var(--text);
+    border:1px solid transparent;
+    box-sizing:border-box;
+  }
+  .code-editor textarea#query{
+    position:relative;
+    background:transparent;
+    color:transparent;
+    caret-color:var(--text);
+    box-sizing:border-box;
+  }
+  .tok-kw{ color:#5b8cff; font-weight:700; }
+  .tok-fn{ color:#e0c341; font-weight:600; }
+  .tok-str{ color:#e0645a; }
+  .tok-num{ color:#b0b0b0; }
+  .tok-cmt{ color:var(--dim); font-style:italic; }
+
+  .code-mirror{
+    position:absolute;
+    top:0; left:0; right:0;
+    margin:0;
+    padding:10px 12px;
+    font-family:var(--mono);
+    font-size:13.5px;
+    line-height:normal;
+    white-space:pre-wrap;
+    word-wrap:break-word;
+    visibility:hidden;
+    pointer-events:none;
+    border:1px solid transparent;
+    box-sizing:border-box;
+  }
+  .autocomplete-box{
+    position:absolute;
+    z-index:20;
+    min-width:160px;
+    max-width:280px;
+    max-height:200px;
+    overflow-y:auto;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:3px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.5);
+  }
+  .ac-item{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    padding:5px 9px;
+    font-size:12.5px;
+    cursor:pointer;
+    color:var(--text);
+  }
+  .ac-item.active{ background:var(--accent-dim); }
+  .ac-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .ac-dot.kw{ background:#5b8cff; }
+  .ac-dot.fn{ background:#e0c341; }
+  .ac-dot.schema{ background:var(--accent); }
+  .ac-type{ margin-left:auto; color:var(--dim); font-size:10px; }
+  textarea:focus{ border-color: var(--accent-dim); }
+  .controls{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+  button{
+    font-family:var(--mono); background:var(--accent); color:#0a1512; border:none; padding:7px 16px;
+    border-radius:3px; font-weight:700; font-size:12.5px; cursor:pointer; letter-spacing:0.02em;
+  }
+  button:hover{ filter:brightness(1.08); }
+  button:active{ transform: translateY(1px); }
+  button:disabled{ opacity:0.4; cursor:default; }
+  .hint{ color:var(--dim); font-size:11.5px; }
+  .ghost{ background:transparent; color:var(--dim); border:1px solid var(--line); font-weight:400; }
+  .ghost:hover{ color:var(--text); border-color:var(--dim); }
+  .danger:hover{ color:var(--error); border-color:var(--error); }
+
+  .results-wrap{ flex:1; overflow-y:auto; overflow-x:hidden; padding:14px 18px; min-height:0; }
+  .result-label{
+    font-size:11.5px;
+    color:var(--dim);
+    margin:14px 0 6px;
+    padding-bottom:4px;
+    border-bottom:1px solid var(--line);
+    font-family:var(--mono);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .result-label:first-child{ margin-top:0; }
+  .table-scroll{
+    max-height:340px;
+    overflow:auto;
+    border:1px solid var(--line);
+    border-radius:3px;
+  }
+  .table-scroll table.results{ border:none; }
+  .table-scroll th{ position:sticky; top:0; z-index:1; }
+  .status{ font-size:12px; margin-bottom:10px; color:var(--dim); }
+  .status.error{ color:var(--error); white-space:pre-wrap; }
+  .status.ok .n{ color:var(--accent); font-weight:700; }
+
+  table.results{ border-collapse:collapse; width:100%; font-size:13px; }
+  table.results th{
+    text-align:left; background:var(--panel-2); color:var(--accent); padding:6px 12px;
+    border:1px solid var(--line); font-weight:600; white-space:nowrap;
+  }
+  table.results td{ padding:6px 12px; border:1px solid var(--line); color:var(--text); white-space:nowrap; }
+  table.results tr:nth-child(even) td{ background: rgba(255,255,255,0.015); }
+  .empty{ color:var(--dim); padding:20px 0; }
+
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:5px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SQL Playground</h1>
+</header>
+
+<div class="layout">
+  <div class="schema-pane" id="schemaPane">
+
+    <div class="section-head"><span>AI SCHEMA GENERATOR</span><button class="collapse-toggle acc-toggle" data-target="geminiPanel">hide</button></div>
+    <div class="gemini-block acc-body" id="geminiPanel">
+      <label>Gemini api key</label>
+      <input type="password" id="apiKey" placeholder="xyewsdfjiuerisxe">
+
+      <label>Schema</label>
+      <textarea id="questionText" placeholder=""></textarea>
+
+      <div class="paste-target" id="pasteTarget" tabindex="0">Ctrl+V images or upload:</div>
+      <div class="file-row">
+        <input type="file" id="imageInput" accept="image/*" multiple>
+        <button class="ghost file-clear" id="clearImage">clear all</button>
+      </div>
+      <div id="thumbs" class="thumbs"></div>
+
+      <button class="gen-btn" id="generateBtn">Generate schema</button>
+      <div id="geminiStatus" class="gemini-status"></div>
+    </div>
+
+    <div class="section-head"><span>SCHEMA</span><button class="collapse-toggle acc-toggle" data-target="schemaBody">show</button></div>
+    <div class="acc-body collapsed" id="schemaBody">
+      <div id="schemaList"><div class="no-schema">No schema loaded.</div></div>
+    </div>
+
+    <div class="section-head"><span>SETUP SQL</span><button class="collapse-toggle acc-toggle" data-target="setupBody">show</button></div>
+    <div class="setup-editor acc-body collapsed" id="setupBody">
+      <textarea id="setupSql" spellcheck="false" placeholder="CREATE TABLE ...;"></textarea>
+      <div class="row">
+        <button id="loadBtn">Load schema</button>
+        <button class="ghost" id="clearBtn">Clear</button>
+        <button class="ghost danger" id="resetSchemaBtn">Reset schema</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-rail"><button id="sidebarToggle" title="Collapse panel">‹</button></div>
+
+  <div class="main">
+    <div class="editor-wrap">
+      <div class="code-editor">
+        <pre id="queryHighlight" class="code-highlight" aria-hidden="true"></pre>
+        <div id="queryMirror" class="code-mirror" aria-hidden="true"></div>
+        <div id="autocompleteBox" class="autocomplete-box" style="display:none"></div>
+        <textarea id="query" spellcheck="false" placeholder="Write your query..."></textarea>
+      </div>
+      <div class="controls">
+        <button id="runBtn">Run query</button>
+        <span class="hint">Cmd/Ctrl + Enter to run</span>
+      </div>
+    </div>
+    <div class="results-wrap">
+      <div id="status" class="status"></div>
+      <div id="output"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script>
+let SQL;
+let db;
+let images = []; // { id, mime, data (base64), dataUrl }
+
+const statusEl = document.getElementById('status');
+const outputEl = document.getElementById('output');
+const queryEl = document.getElementById('query');
+const setupEl = document.getElementById('setupSql');
+const runBtn = document.getElementById('runBtn');
+const schemaListEl = document.getElementById('schemaList');
+const geminiStatusEl = document.getElementById('geminiStatus');
+const thumbsEl = document.getElementById('thumbs');
+
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, m => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[m]));
+}
+
+// --- SQL syntax highlighting for the query editor ---
+const queryHighlightEl = document.getElementById('queryHighlight');
+
+const SQL_KEYWORDS = new Set([
+  'SELECT','FROM','WHERE','JOIN','INNER','LEFT','RIGHT','FULL','OUTER','ON',
+  'GROUP','BY','ORDER','HAVING','INSERT','INTO','VALUES','UPDATE','SET',
+  'DELETE','CREATE','TABLE','DROP','ALTER','ADD','COLUMN','DISTINCT','AS',
+  'AND','OR','NOT','NULL','IS','IN','LIKE','BETWEEN','LIMIT','OFFSET',
+  'UNION','ALL','EXISTS','CASE','WHEN','THEN','ELSE','END','PRIMARY','KEY',
+  'FOREIGN','REFERENCES','DEFAULT','ASC','DESC','WITH','IF','USING','CROSS',
+  'NATURAL','INDEX','VIEW','TRIGGER','CONSTRAINT','UNIQUE','CHECK','CASCADE',
+  'INTEGER','TEXT','REAL','BLOB','NUMERIC','VARCHAR','BOOLEAN',
+  'OVER','PARTITION','ROWS','RANGE','UNBOUNDED','PRECEDING','FOLLOWING','ROW',
+  'RECURSIVE','FILTER','WINDOW'
+]);
+
+const SQL_FUNCTIONS = new Set([
+  // aggregate
+  'COUNT','SUM','AVG','MIN','MAX','GROUP_CONCAT','TOTAL','ARRAY_AGG',
+  'STDDEV','VARIANCE','CORR',
+  // window functions
+  'ROW_NUMBER','RANK','DENSE_RANK','NTILE','LAG','LEAD','FIRST_VALUE',
+  'LAST_VALUE','NTH_VALUE','PERCENT_RANK','CUME_DIST',
+  // string
+  'UPPER','LOWER','SUBSTR','SUBSTRING','TRIM','LTRIM','RTRIM','REPLACE',
+  'LENGTH','CONCAT','CONCAT_WS','LPAD','RPAD','REPEAT','REVERSE','INSTR',
+  'CHAR','ASCII','HEX','FORMAT','SPLIT_PART','POSITION',
+  // numeric
+  'ROUND','ABS','RANDOM','CEIL','CEILING','FLOOR','MOD','SIGN','POWER',
+  'SQRT','EXP','LOG','LOG10','LN','PI','TRUNC',
+  // date/time
+  'DATE','DATETIME','STRFTIME','JULIANDAY','NOW','CURRENT_DATE',
+  'CURRENT_TIME','CURRENT_TIMESTAMP','DATEADD','DATEDIFF','DATE_TRUNC',
+  'DATE_PART','EXTRACT','TIMESTAMPDIFF','TIMESTAMPADD',
+  // null/conditional/misc
+  'COALESCE','CAST','IFNULL','NULLIF','TYPEOF','PRINTF','GREATEST','LEAST',
+  'DECODE','ISNULL','MD5','UUID'
+]);
+
+const SQL_TOKEN_RE = /(--[^\n]*)|('(?:[^']|'')*')|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_][A-Za-z0-9_]*\b)/g;
+
+function highlightSql(text){
+  let html = text.replace(SQL_TOKEN_RE, (match, comment, str, num, word) => {
+    if(comment) return `<span class="tok-cmt">${escapeHtml(comment)}</span>`;
+    if(str) return `<span class="tok-str">${escapeHtml(str)}</span>`;
+    if(num) return `<span class="tok-num">${escapeHtml(num)}</span>`;
+    if(word){
+      const upper = word.toUpperCase();
+      if(SQL_KEYWORDS.has(upper)) return `<span class="tok-kw">${escapeHtml(word)}</span>`;
+      if(SQL_FUNCTIONS.has(upper)) return `<span class="tok-fn">${escapeHtml(word)}</span>`;
+      return escapeHtml(word);
+    }
+    return escapeHtml(match);
+  });
+  // keep a trailing blank line visible, same as the textarea does
+  if(text.slice(-1) === '\n') html += '\n';
+  return html;
+}
+
+function updateQueryHighlight(){
+  queryHighlightEl.innerHTML = highlightSql(queryEl.value);
+}
+
+queryEl.addEventListener('input', updateQueryHighlight);
+queryEl.addEventListener('scroll', () => {
+  queryHighlightEl.scrollTop = queryEl.scrollTop;
+  queryHighlightEl.scrollLeft = queryEl.scrollLeft;
+  queryMirrorEl.scrollTop = queryEl.scrollTop;
+});
+updateQueryHighlight();
+
+// --- autocomplete: table/column/keyword/function suggestions, Tab to accept ---
+const queryMirrorEl = document.getElementById('queryMirror');
+const codeEditorEl = document.querySelector('.code-editor');
+const acBox = document.getElementById('autocompleteBox');
+let acItems = [];
+let acActiveIndex = 0;
+
+function getCurrentWordRange(){
+  const value = queryEl.value;
+  const pos = queryEl.selectionStart;
+  const left = value.slice(0, pos);
+  const match = left.match(/[A-Za-z_][A-Za-z0-9_]*$/);
+  if(!match) return null;
+  const start = pos - match[0].length;
+  return { start, end: pos, word: match[0] };
+}
+
+function getCaretCoords(){
+  const pos = queryEl.selectionStart;
+  const before = queryEl.value.slice(0, pos);
+  queryMirrorEl.textContent = before;
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';
+  queryMirrorEl.appendChild(marker);
+  const markerRect = marker.getBoundingClientRect();
+  const editorRect = codeEditorEl.getBoundingClientRect();
+  return {
+    top: (markerRect.top - editorRect.top) + markerRect.height - queryEl.scrollTop,
+    left: (markerRect.left - editorRect.left) - queryEl.scrollLeft
+  };
+}
+
+function getSuggestionSource(){
+  const seen = new Set();
+  const items = [];
+
+  if(db){
+    try{
+      const tablesRes = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
+      if(tablesRes.length){
+        tablesRes[0].values.forEach(r => {
+          const name = r[0];
+          if(!seen.has(name.toLowerCase())){ items.push({ text:name, type:'table' }); seen.add(name.toLowerCase()); }
+          const info = db.exec(`PRAGMA table_info("${name}");`)[0];
+          if(info) info.values.forEach(row => {
+            const col = row[1];
+            if(!seen.has(col.toLowerCase())){ items.push({ text:col, type:'column' }); seen.add(col.toLowerCase()); }
+          });
+        });
+      }
+    } catch(e){ /* ignore introspection errors */ }
+  }
+
+  SQL_FUNCTIONS.forEach(f => { if(!seen.has(f.toLowerCase())){ items.push({ text:f, type:'function' }); seen.add(f.toLowerCase()); } });
+  SQL_KEYWORDS.forEach(k => { if(!seen.has(k.toLowerCase())){ items.push({ text:k, type:'keyword' }); seen.add(k.toLowerCase()); } });
+
+  return items;
+}
+
+function hideAutocomplete(){
+  acBox.style.display = 'none';
+  acItems = [];
+}
+
+function renderAutocomplete(){
+  acBox.innerHTML = '';
+  acItems.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'ac-item' + (i === acActiveIndex ? ' active' : '');
+    const dotClass = item.type === 'keyword' ? 'kw' : item.type === 'function' ? 'fn' : 'schema';
+    row.innerHTML = `<span class="ac-dot ${dotClass}"></span><span>${escapeHtml(item.text)}</span><span class="ac-type">${item.type}</span>`;
+    row.addEventListener('mousedown', (e) => { e.preventDefault(); acActiveIndex = i; acceptSuggestion(); });
+    acBox.appendChild(row);
+  });
+}
+
+function updateAutocomplete(){
+  const range = getCurrentWordRange();
+  if(!range || range.word.length === 0){ hideAutocomplete(); return; }
+
+  const wordLower = range.word.toLowerCase();
+  const matches = getSuggestionSource()
+    .filter(item => item.text.toLowerCase().startsWith(wordLower) && item.text.toLowerCase() !== wordLower)
+    .slice(0, 8);
+
+  if(matches.length === 0){ hideAutocomplete(); return; }
+
+  acItems = matches;
+  acActiveIndex = 0;
+  renderAutocomplete();
+
+  const coords = getCaretCoords();
+  acBox.style.top = coords.top + 'px';
+  acBox.style.left = coords.left + 'px';
+  acBox.style.display = 'block';
+}
+
+function acceptSuggestion(){
+  if(acItems.length === 0) return;
+  const range = getCurrentWordRange();
+  if(!range) return;
+  const chosen = acItems[acActiveIndex].text;
+  const value = queryEl.value;
+  queryEl.value = value.slice(0, range.start) + chosen + value.slice(range.end);
+  const newPos = range.start + chosen.length;
+  queryEl.selectionStart = queryEl.selectionEnd = newPos;
+  updateQueryHighlight();
+  hideAutocomplete();
+}
+
+queryEl.addEventListener('input', updateAutocomplete);
+queryEl.addEventListener('click', hideAutocomplete);
+
+queryEl.addEventListener('keydown', (e) => {
+  if(acBox.style.display === 'block'){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      acceptSuggestion();
+      return;
+    }
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      acActiveIndex = (acActiveIndex + 1) % acItems.length;
+      renderAutocomplete();
+      return;
+    }
+    if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      acActiveIndex = (acActiveIndex - 1 + acItems.length) % acItems.length;
+      renderAutocomplete();
+      return;
+    }
+    if(e.key === 'Escape'){
+      hideAutocomplete();
+      return;
+    }
+  }
+  if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){
+    hideAutocomplete();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if(e.target !== queryEl && !acBox.contains(e.target)){
+    hideAutocomplete();
+  }
+});
+
+function renderSchema(){
+  schemaListEl.innerHTML = '';
+  const res = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
+  const tableNames = res.length ? res[0].values.map(r => r[0]) : [];
+
+  if(tableNames.length === 0){
+    schemaListEl.innerHTML = '<div class="no-schema">No tables in the database.</div>';
+    return;
+  }
+
+  tableNames.forEach(t => {
+    const countRes = db.exec(`SELECT COUNT(*) FROM "${t}";`);
+    const count = countRes[0].values[0][0];
+
+    const fkRes = db.exec(`PRAGMA foreign_key_list("${t}");`);
+    const fkMap = {};
+    if(fkRes.length){
+      fkRes[0].values.forEach(row => { fkMap[row[3]] = row[2]; });
+    }
+
+    const block = document.createElement('div');
+    block.className = 'table-block';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'table-name';
+    nameRow.innerHTML = `<span>${escapeHtml(t)}</span><span class="count">${count} rows</span>`;
+    block.appendChild(nameRow);
+
+    const colsDiv = document.createElement('div');
+    colsDiv.className = 'cols';
+    const info = db.exec(`PRAGMA table_info("${t}");`)[0];
+    info.values.forEach(row => {
+      const colName = row[1];
+      const isPk = row[5] > 0;
+      const fk = fkMap[colName];
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'col-row';
+      rowDiv.innerHTML = `<span>${escapeHtml(colName)}${isPk ? ' (PK)' : ''}</span>${fk ? `<span class="fk">&rarr; ${escapeHtml(fk)}</span>` : ''}`;
+      colsDiv.appendChild(rowDiv);
+    });
+    block.appendChild(colsDiv);
+
+    nameRow.addEventListener('click', () => colsDiv.classList.toggle('open'));
+    schemaListEl.appendChild(block);
+  });
+}
+
+function loadSchema(){
+  const sql = setupEl.value.trim();
+  if(!sql){
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Paste some CREATE TABLE / INSERT statements first.';
+    return;
+  }
+  try{
+    db = new SQL.Database();
+    db.run(sql);
+    renderSchema();
+    runBtn.disabled = false;
+    statusEl.className = 'status';
+    statusEl.textContent = 'Schema loaded.';
+    outputEl.innerHTML = '';
+  } catch(e){
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Error loading schema: ' + e.message;
+  }
+}
+
+function splitStatements(sql){
+  // naive split on semicolons that are not inside a single-quoted string
+  const stmts = [];
+  let current = '';
+  let inString = false;
+  for(let i = 0; i < sql.length; i++){
+    const ch = sql[i];
+    if(ch === "'"){
+      if(inString && sql[i + 1] === "'"){
+        current += "''";
+        i++;
+        continue;
+      }
+      inString = !inString;
+      current += ch;
+      continue;
+    }
+    if(ch === ';' && !inString){
+      stmts.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if(current.trim()) stmts.push(current);
+  return stmts.map(s => s.trim()).filter(Boolean);
+}
+
+function runQuery(){
+  if(!db){
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Load a schema before running a query.';
+    return;
+  }
+  const sql = queryEl.value.trim();
+  if(!sql) return;
+  try {
+    const results = db.exec(sql);
+
+    const allStmts = splitStatements(sql);
+    const outputStmts = allStmts.filter(s => /^(SELECT|WITH|PRAGMA|EXPLAIN)\b/i.test(s));
+    const useLabels = outputStmts.length === results.length && results.length > 1;
+
+    renderSchema();
+
+    if(results.length === 0){
+      statusEl.className = 'status ok';
+      statusEl.textContent = allStmts.length > 1
+        ? `${allStmts.length} statements executed. No rows returned.`
+        : 'Query executed. No rows returned.';
+      outputEl.innerHTML = '<div class="empty">(no result set)</div>';
+      return;
+    }
+
+    const totalRows = results.reduce((sum, r) => sum + r.values.length, 0);
+    statusEl.className = 'status ok';
+    statusEl.innerHTML = results.length > 1
+      ? `<span class="n">${results.length}</span> result sets, <span class="n">${totalRows}</span> total row${totalRows === 1 ? '' : 's'}.`
+      : `<span class="n">${totalRows}</span> row${totalRows === 1 ? '' : 's'} returned.`;
+
+    let html = '';
+    results.forEach(({ columns, values }, idx) => {
+      if(results.length > 1){
+        const label = useLabels ? outputStmts[idx] : `Result ${idx + 1}`;
+        html += `<div class="result-label">Query ${idx + 1}${useLabels ? ': ' + escapeHtml(label.length > 80 ? label.slice(0, 80) + '…' : label) : ''} — ${values.length} row${values.length === 1 ? '' : 's'}</div>`;
+      }
+      html += '<div class="table-scroll"><table class="results"><thead><tr>';
+      columns.forEach(c => html += `<th>${escapeHtml(c)}</th>`);
+      html += '</tr></thead><tbody>';
+      values.forEach(row => {
+        html += '<tr>';
+        row.forEach(cell => { html += `<td>${cell === null ? 'NULL' : escapeHtml(String(cell))}</td>`; });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    });
+    outputEl.innerHTML = html;
+  } catch(e){
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Error: ' + e.message;
+    outputEl.innerHTML = '';
+  }
+}
+
+document.getElementById('loadBtn').addEventListener('click', loadSchema);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  setupEl.value = '';
+  try{ localStorage.removeItem('sql_playground_setup_sql'); } catch(e){}
+});
+document.getElementById('resetSchemaBtn').addEventListener('click', () => {
+  const confirmed = window.confirm('Reset schema completely? This will delete all tables and data. This cannot be undone.');
+  if(!confirmed) return;
+
+  db = null;
+  setupEl.value = '';
+  queryEl.value = '';
+  outputEl.innerHTML = '';
+  runBtn.disabled = true;
+  statusEl.className = 'status';
+  statusEl.textContent = 'Schema reset.';
+  schemaListEl.innerHTML = '<div class="no-schema">No schema loaded.</div>';
+  try{ localStorage.removeItem('sql_playground_setup_sql'); } catch(e){}
+});
+runBtn.addEventListener('click', runQuery);
+runBtn.disabled = true;
+
+[queryEl, setupEl].forEach(el => {
+  el.addEventListener('keydown', (e) => {
+    if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){
+      if(el === setupEl) loadSchema();
+      else runQuery();
+    }
+  });
+});
+
+// --- persist API key locally (works when this file is opened directly in a
+const apiKeyEl = document.getElementById('apiKey');
+try{
+  const savedKey = localStorage.getItem('sql_playground_gemini_key');
+  if(savedKey) apiKeyEl.value = savedKey;
+} catch(e){ /* storage unavailable (e.g. sandboxed preview) — ignore */ }
+
+apiKeyEl.addEventListener('input', () => {
+  try{
+    if(apiKeyEl.value.trim()){
+      localStorage.setItem('sql_playground_gemini_key', apiKeyEl.value.trim());
+    } else {
+      localStorage.removeItem('sql_playground_gemini_key');
+    }
+  } catch(e){ /* storage unavailable — ignore */ }
+});
+
+// --- persist schema (Setup SQL) locally, same caveat as above ---
+try{
+  const savedSchema = localStorage.getItem('sql_playground_setup_sql');
+  if(savedSchema){
+    setupEl.value = savedSchema;
+  }
+} catch(e){ /* storage unavailable — ignore */ }
+
+setupEl.addEventListener('input', () => {
+  try{
+    if(setupEl.value.trim()){
+      localStorage.setItem('sql_playground_setup_sql', setupEl.value);
+    } else {
+      localStorage.removeItem('sql_playground_setup_sql');
+    }
+  } catch(e){ /* storage unavailable — ignore */ }
+});
+
+// --- sidebar collapse ---
+const schemaPane = document.getElementById('schemaPane');
+const sidebarToggle = document.getElementById('sidebarToggle');
+sidebarToggle.addEventListener('click', () => {
+  const collapsed = schemaPane.classList.toggle('collapsed');
+  sidebarToggle.textContent = collapsed ? '›' : '‹';
+});
+
+// --- accordion: only one sidebar section open at a time ---
+const accToggles = document.querySelectorAll('.acc-toggle');
+accToggles.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const targetId = btn.dataset.target;
+    const targetBody = document.getElementById(targetId);
+    const isCurrentlyOpen = !targetBody.classList.contains('collapsed');
+
+    accToggles.forEach(b => {
+      const body = document.getElementById(b.dataset.target);
+      body.classList.add('collapsed');
+      b.textContent = 'show';
+    });
+
+    if(!isCurrentlyOpen){
+      targetBody.classList.remove('collapsed');
+      btn.textContent = 'hide';
+    }
+  });
+});
+
+// --- image handling (file upload + clipboard paste, up to 5 images) ---
+const MAX_IMAGES = 5;
+let nextImageId = 1;
+
+function renderThumbs(){
+  thumbsEl.innerHTML = '';
+  images.forEach(img => {
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb-wrap';
+    const el = document.createElement('img');
+    el.src = img.dataUrl;
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'thumb-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove image';
+    removeBtn.addEventListener('click', () => {
+      images = images.filter(i => i.id !== img.id);
+      renderThumbs();
+    });
+    wrap.appendChild(el);
+    wrap.appendChild(removeBtn);
+    thumbsEl.appendChild(wrap);
+  });
+}
+
+function addImageFromBlob(blob){
+  if(images.length >= MAX_IMAGES){
+    geminiStatusEl.className = 'gemini-status error';
+    geminiStatusEl.textContent = `You can attach up to ${MAX_IMAGES} images.`;
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    images.push({
+      id: nextImageId++,
+      mime: blob.type || 'image/png',
+      data: reader.result.split(',')[1],
+      dataUrl: reader.result
+    });
+    renderThumbs();
+  };
+  reader.readAsDataURL(blob);
+}
+
+document.getElementById('imageInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  const room = MAX_IMAGES - images.length;
+  if(files.length > room){
+    geminiStatusEl.className = 'gemini-status error';
+    geminiStatusEl.textContent = `You can attach up to ${MAX_IMAGES} images — added first ${room}.`;
+  }
+  files.slice(0, room).forEach(addImageFromBlob);
+  e.target.value = '';
+});
+document.getElementById('clearImage').addEventListener('click', () => {
+  images = [];
+  renderThumbs();
+});
+
+function handlePasteEvent(e){
+  const items = (e.clipboardData || window.clipboardData).items;
+  let handled = false;
+  for(const item of items){
+    if(item.type.indexOf('image') === 0){
+      addImageFromBlob(item.getAsFile());
+      handled = true;
+    }
+  }
+  if(handled) e.preventDefault();
+}
+document.getElementById('pasteTarget').addEventListener('paste', handlePasteEvent);
+document.getElementById('questionText').addEventListener('paste', handlePasteEvent);
+
+
+// --- Gemini schema generation ---
+let cachedModelList = null;
+let cachedModelListKey = null;
+
+async function resolveModelCandidates(apiKey){
+  if(cachedModelList && cachedModelListKey === apiKey) return cachedModelList;
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+  const data = await resp.json();
+  if(!resp.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : `HTTP ${resp.status}`;
+    throw new Error(msg);
+  }
+  const models = (data.models || []).filter(m =>
+    (m.supportedGenerationMethods || []).includes('generateContent')
+  );
+  if(models.length === 0){
+    throw new Error('No usable Gemini models found for this API key.');
+  }
+  const preferredOrder = ['flash-latest', '2.5-flash', '2.0-flash', '1.5-flash', 'flash', 'pro-latest', 'pro'];
+  const ranked = [];
+  preferredOrder.forEach(pref => {
+    models.forEach(m => {
+      if(m.name.includes(pref) && !ranked.includes(m.name)) ranked.push(m.name);
+    });
+  });
+  models.forEach(m => { if(!ranked.includes(m.name)) ranked.push(m.name); });
+
+  cachedModelList = ranked.map(n => n.replace('models/', ''));
+  cachedModelListKey = apiKey;
+  return cachedModelList;
+}
+
+function isOverloadedError(message){
+  const m = message.toLowerCase();
+  return m.includes('high demand') || m.includes('overloaded') || m.includes('503') || m.includes('unavailable');
+}
+
+const GEN_PROMPT = `You are a database schema generator. Based on the database schema description and/or the question given (as text and/or image), produce SQLite-compatible SQL only.
+
+Output requirements:
+- Output ONLY raw SQL statements. No explanations, no markdown code fences, no comments.
+- CREATE TABLE statements for every table mentioned, with sensible column types (INTEGER, TEXT, REAL) and PRIMARY KEY / FOREIGN KEY constraints matching the described relationships.
+- Then INSERT INTO statements with realistic sample data: 3-6 rows per table.
+- Make sure the sample data actually exercises the specific question being asked (e.g. include rows that satisfy the filter conditions and rows that don't, so the correct query's output is non-trivial).
+- Use double-quoted identifiers only if a name needs escaping.
+- Do not wrap the output in triple backticks.`;
+
+document.getElementById('generateBtn').addEventListener('click', async () => {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const questionText = document.getElementById('questionText').value.trim();
+
+  if(!apiKey){
+    geminiStatusEl.className = 'gemini-status error';
+    geminiStatusEl.textContent = 'Enter your Gemini API key first.';
+    return;
+  }
+  if(!questionText && images.length === 0){
+    geminiStatusEl.className = 'gemini-status error';
+    geminiStatusEl.textContent = 'Provide schema/question text and/or an image.';
+    return;
+  }
+
+  const parts = [{ text: GEN_PROMPT + (questionText ? `\n\nSchema/question:\n${questionText}` : '') }];
+  images.forEach(img => {
+    parts.push({ inline_data: { mime_type: img.mime, data: img.data } });
+  });
+
+  geminiStatusEl.className = 'gemini-status working';
+  geminiStatusEl.textContent = 'Detecting model...';
+  document.getElementById('generateBtn').disabled = true;
+
+  try{
+    const candidates = await resolveModelCandidates(apiKey);
+    let text = null;
+    let lastError = null;
+    let usedModel = null;
+
+    for(let i = 0; i < candidates.length; i++){
+      const model = candidates[i];
+      geminiStatusEl.textContent = `Generating schema with ${model}...`;
+
+      try{
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts }] })
+        });
+
+        const data = await resp.json();
+
+        if(!resp.ok){
+          const msg = (data && data.error && data.error.message) ? data.error.message : `HTTP ${resp.status}`;
+          throw new Error(msg);
+        }
+
+        const candidate = data.candidates && data.candidates[0];
+        text = candidate && candidate.content && candidate.content.parts
+          ? candidate.content.parts.map(p => p.text || '').join('\n')
+          : '';
+
+        if(!text) throw new Error('Model returned no content.');
+        usedModel = model;
+        break; // success
+      } catch(e){
+        lastError = e;
+        if(isOverloadedError(e.message) && i < candidates.length - 1){
+          geminiStatusEl.textContent = `${model} is overloaded, trying ${candidates[i + 1]}...`;
+          continue;
+        }
+        if(!isOverloadedError(e.message)) throw e; // non-overload error: stop immediately
+        // overloaded and out of candidates: fall through to throw below
+      }
+    }
+
+    if(!text){
+      throw lastError || new Error('All available models are overloaded. Try again shortly.');
+    }
+
+    text = text.trim().replace(/^```sql\s*/i, '').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+
+    setupEl.value = text;
+    geminiStatusEl.className = 'gemini-status';
+    geminiStatusEl.textContent = 'Schema generated. Loading...';
+    loadSchema();
+    geminiStatusEl.textContent = `Loaded (model: ${usedModel}).`;
+  } catch(e){
+    geminiStatusEl.className = 'gemini-status error';
+    geminiStatusEl.textContent = 'Error: ' + e.message;
+  } finally {
+    document.getElementById('generateBtn').disabled = false;
+  }
+});
+
+initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` })
+  .then(engine => {
+    SQL = engine;
+    if(setupEl.value.trim()){
+      loadSchema();
+    }
+  })
+  .catch(e => {
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Failed to load SQL engine: ' + e.message;
+  });
+</script>
+</body>
+</html>
