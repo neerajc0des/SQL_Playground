@@ -160,14 +160,21 @@
   .setup-editor .row{ display:flex; gap:8px; padding:8px 14px; }
 
   .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
-  .editor-wrap{ padding:14px 18px 8px; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .editor-wrap{
+    padding:14px 18px 8px;
+    flex-shrink:0;
+    display:flex;
+    flex-direction:column;
+    height:280px;
+    min-height:110px;
+  }
   textarea{
     width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
     font-family:var(--mono); font-size:13.5px; padding:10px 12px; border-radius:3px; outline:none;
   }
-  #query{ height:220px; resize:vertical; }
+  #query{ height:100%; width:100%; resize:none; }
 
-  .code-editor{ position:relative; background:var(--panel); border-radius:3px; }
+  .code-editor{ position:relative; background:var(--panel); border-radius:3px; flex:1; min-height:0; margin-bottom:8px; }
   .code-highlight{
     position:absolute;
     inset:0;
@@ -239,8 +246,65 @@
   .ac-dot.fn{ background:#e0c341; }
   .ac-dot.schema{ background:var(--accent); }
   .ac-type{ margin-left:auto; color:var(--dim); font-size:10px; }
+
+  .er-preview{ padding:10px 14px 14px; }
+  .er-preview-scroll{
+    max-height:240px;
+    overflow:auto;
+    border:1px solid var(--line);
+    border-radius:4px;
+    background:var(--panel);
+    cursor:pointer;
+  }
+  .er-preview-scroll:hover{ border-color:var(--dim); }
+  .er-preview-scroll svg{ display:block; width:100%; height:auto; }
+  .er-hint{ margin-top:6px; font-size:10.5px; color:var(--dim); text-align:center; }
+
+  .er-modal-backdrop{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.72);
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    padding:30px;
+  }
+  .er-modal-backdrop.open{ display:flex; }
+  .er-modal{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    max-width:92vw;
+    max-height:92vh;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .er-modal-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 16px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .er-modal-header h2{ font-size:13px; margin:0; color:var(--text); font-weight:700; letter-spacing:0.04em; }
+  .er-modal-close{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--dim);
+    width:24px; height:24px;
+    padding:0;
+    border-radius:4px;
+    font-size:15px;
+    line-height:1;
+  }
+  .er-modal-close:hover{ color:var(--text); border-color:var(--dim); }
+  .er-modal-body{ overflow:auto; padding:24px; }
+  .er-modal-body svg{ display:block; }
   textarea:focus{ border-color: var(--accent-dim); }
-  .controls{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .controls{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
   button{
     font-family:var(--mono); background:var(--accent); color:#0a1512; border:none; padding:7px 16px;
     border-radius:3px; font-weight:700; font-size:12.5px; cursor:pointer; letter-spacing:0.02em;
@@ -254,6 +318,26 @@
   .danger:hover{ color:var(--error); border-color:var(--error); }
 
   .results-wrap{ flex:1; overflow-y:auto; overflow-x:hidden; padding:14px 18px; min-height:0; }
+  .v-resizer{
+    height:7px;
+    flex-shrink:0;
+    cursor:ns-resize;
+    background:var(--panel-2);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .v-resizer::after{
+    content:"";
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:32px; height:3px;
+    border-radius:2px;
+    background:var(--line);
+  }
+  .v-resizer:hover, .v-resizer.dragging{ background:var(--accent-dim); }
+  .v-resizer:hover::after, .v-resizer.dragging::after{ background:var(--dim); }
   .result-label{
     font-size:11.5px;
     color:var(--dim);
@@ -306,13 +390,13 @@
       <label>Gemini api key</label>
       <input type="password" id="apiKey" placeholder="xyewsdfjiuerisxe">
 
-      <label>Schema</label>
-      <textarea id="questionText" placeholder=""></textarea>
+      <label>Prompt</label>
+      <textarea id="questionText"></textarea>
 
       <div class="paste-target" id="pasteTarget" tabindex="0">Ctrl+V images or upload:</div>
       <div class="file-row">
         <input type="file" id="imageInput" accept="image/*" multiple>
-        <button class="ghost file-clear" id="clearImage">clear all</button>
+        <button class="ghost file-clear" id="clearImage" style="display:none">clear all</button>
       </div>
       <div id="thumbs" class="thumbs"></div>
 
@@ -323,6 +407,14 @@
     <div class="section-head"><span>SCHEMA</span><button class="collapse-toggle acc-toggle" data-target="schemaBody">show</button></div>
     <div class="acc-body collapsed" id="schemaBody">
       <div id="schemaList"><div class="no-schema">No schema loaded.</div></div>
+    </div>
+
+    <div class="section-head"><span>ER DIAGRAM</span><button class="collapse-toggle acc-toggle" data-target="erBody">show</button></div>
+    <div class="acc-body collapsed" id="erBody">
+      <div class="er-preview">
+        <div class="er-preview-scroll" id="erDiagramPreview"><div class="no-schema">No schema loaded.</div></div>
+        <div class="er-hint" id="erHint"></div>
+      </div>
     </div>
 
     <div class="section-head"><span>SETUP SQL</span><button class="collapse-toggle acc-toggle" data-target="setupBody">show</button></div>
@@ -336,10 +428,20 @@
     </div>
   </div>
 
+  <div class="er-modal-backdrop" id="erModalBackdrop">
+    <div class="er-modal">
+      <div class="er-modal-header">
+        <h2>ER Diagram</h2>
+        <button class="er-modal-close" id="erModalClose">&times;</button>
+      </div>
+      <div class="er-modal-body" id="erModalBody"></div>
+    </div>
+  </div>
+
   <div class="sidebar-rail"><button id="sidebarToggle" title="Collapse panel">‹</button></div>
 
   <div class="main">
-    <div class="editor-wrap">
+    <div class="editor-wrap" id="editorWrap">
       <div class="code-editor">
         <pre id="queryHighlight" class="code-highlight" aria-hidden="true"></pre>
         <div id="queryMirror" class="code-mirror" aria-hidden="true"></div>
@@ -351,6 +453,7 @@
         <span class="hint">Cmd/Ctrl + Enter to run</span>
       </div>
     </div>
+    <div class="v-resizer" id="vResizer" title="Drag to resize"></div>
     <div class="results-wrap">
       <div id="status" class="status"></div>
       <div id="output"></div>
@@ -643,7 +746,137 @@ function renderSchema(){
     nameRow.addEventListener('click', () => colsDiv.classList.toggle('open'));
     schemaListEl.appendChild(block);
   });
+
+  renderERDiagram();
 }
+
+// --- ER diagram ---
+let erDiagramCache = null;
+
+function getSchemaMeta(){
+  const res = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
+  const tableNames = res.length ? res[0].values.map(r => r[0]) : [];
+  return tableNames.map(name => {
+    const info = db.exec(`PRAGMA table_info("${name}");`)[0];
+    const columns = info ? info.values.map(row => ({ name: row[1], pk: row[5] > 0 })) : [];
+    const fkRes = db.exec(`PRAGMA foreign_key_list("${name}");`);
+    const fks = fkRes.length ? fkRes[0].values.map(row => ({ from: row[3], table: row[2], to: row[4] })) : [];
+    return { name, columns, fks };
+  });
+}
+
+function buildERDiagram(){
+  const tables = getSchemaMeta();
+  if(tables.length === 0) return null;
+
+  const boxWidth = 190;
+  const headerHeight = 26;
+  const rowHeight = 17;
+  const hGap = 80;
+  const vGap = 46;
+  const padding = 20;
+  const cols = tables.length <= 2 ? 1 : tables.length <= 6 ? 2 : 3;
+  const rows = Math.ceil(tables.length / cols);
+
+  const rowHeights = new Array(rows).fill(0);
+  const boxMeta = tables.map((t, idx) => {
+    const r = Math.floor(idx / cols);
+    const c = idx % cols;
+    const h = headerHeight + Math.max(t.columns.length, 1) * rowHeight + 10;
+    rowHeights[r] = Math.max(rowHeights[r], h);
+    return { table: t, row: r, col: c, height: h };
+  });
+
+  const rowYOffsets = [];
+  let acc = padding;
+  for(let r = 0; r < rows; r++){ rowYOffsets.push(acc); acc += rowHeights[r] + vGap; }
+  const totalHeight = acc - vGap + padding;
+  const totalWidth = padding * 2 + cols * boxWidth + (cols - 1) * hGap;
+
+  boxMeta.forEach(b => {
+    b.x = padding + b.col * (boxWidth + hGap);
+    b.y = rowYOffsets[b.row];
+  });
+
+  const boxByName = {};
+  boxMeta.forEach(b => { boxByName[b.table.name] = b; });
+
+  let svg = `<svg viewBox="0 0 ${totalWidth} ${totalHeight}" width="${totalWidth}" height="${totalHeight}" xmlns="http://www.w3.org/2000/svg" font-family="monospace">`;
+  svg += `<defs><marker id="erArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--dim)"/></marker></defs>`;
+
+  boxMeta.forEach(b => {
+    b.table.fks.forEach(fk => {
+      const target = boxByName[fk.table];
+      if(!target) return;
+      const fromIdx = b.table.columns.findIndex(c => c.name === fk.from);
+      const toIdx = target.table.columns.findIndex(c => c.name === fk.to);
+      if(fromIdx === -1 || toIdx === -1) return;
+
+      const sourceRight = target.x >= b.x;
+      const sx = sourceRight ? b.x + boxWidth : b.x;
+      const sy = b.y + headerHeight + fromIdx * rowHeight + rowHeight / 2;
+      const tx = sourceRight ? target.x : target.x + boxWidth;
+      const ty = target.y + headerHeight + toIdx * rowHeight + rowHeight / 2;
+      const dx = sourceRight ? 40 : -40;
+
+      svg += `<path d="M${sx},${sy} C${sx + dx},${sy} ${tx - dx},${ty} ${tx},${ty}" style="fill:none;stroke:var(--dim);stroke-width:1.4" marker-end="url(#erArrow)"/>`;
+    });
+  });
+
+  boxMeta.forEach(b => {
+    const t = b.table;
+    svg += `<g>`;
+    svg += `<rect x="${b.x}" y="${b.y}" width="${boxWidth}" height="${b.height}" rx="4" style="fill:var(--panel-2);stroke:var(--line)"/>`;
+    svg += `<rect x="${b.x}" y="${b.y}" width="${boxWidth}" height="${headerHeight}" rx="4" style="fill:var(--accent-dim)"/>`;
+    svg += `<text x="${b.x + 10}" y="${b.y + headerHeight / 2 + 4}" style="fill:var(--text);font-weight:700;font-size:12px">${escapeHtml(t.name)}</text>`;
+    t.columns.forEach((col, i) => {
+      const cy = b.y + headerHeight + i * rowHeight + rowHeight / 2 + 4;
+      const isFk = t.fks.some(fk => fk.from === col.name);
+      const color = col.pk ? '#5b8cff' : isFk ? '#e0c341' : 'var(--dim)';
+      const label = col.name + (col.pk ? ' (PK)' : '');
+      svg += `<text x="${b.x + 12}" y="${cy}" style="fill:${color};font-size:10.5px">${escapeHtml(label)}</text>`;
+    });
+    svg += `</g>`;
+  });
+
+  svg += `</svg>`;
+  return { svg, totalWidth, totalHeight, tableCount: tables.length };
+}
+
+function renderERDiagram(){
+  const previewEl = document.getElementById('erDiagramPreview');
+  const hintEl = document.getElementById('erHint');
+  const result = db ? buildERDiagram() : null;
+
+  if(!result){
+    previewEl.innerHTML = '<div class="no-schema">No schema loaded.</div>';
+    hintEl.textContent = '';
+    erDiagramCache = null;
+    return;
+  }
+
+  erDiagramCache = result;
+  previewEl.innerHTML = result.svg;
+  hintEl.textContent = `${result.tableCount} table${result.tableCount === 1 ? '' : 's'} — click to view full diagram`;
+}
+
+function openERModal(){
+  if(!erDiagramCache) return;
+  document.getElementById('erModalBody').innerHTML = erDiagramCache.svg;
+  document.getElementById('erModalBackdrop').classList.add('open');
+}
+function closeERModal(){
+  document.getElementById('erModalBackdrop').classList.remove('open');
+}
+
+document.getElementById('erDiagramPreview').addEventListener('click', openERModal);
+document.getElementById('erModalClose').addEventListener('click', closeERModal);
+document.getElementById('erModalBackdrop').addEventListener('click', (e) => {
+  if(e.target.id === 'erModalBackdrop') closeERModal();
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') closeERModal();
+});
 
 function loadSchema(){
   const sql = setupEl.value.trim();
@@ -767,6 +1000,9 @@ document.getElementById('resetSchemaBtn').addEventListener('click', () => {
   statusEl.className = 'status';
   statusEl.textContent = 'Schema reset.';
   schemaListEl.innerHTML = '<div class="no-schema">No schema loaded.</div>';
+  document.getElementById('erDiagramPreview').innerHTML = '<div class="no-schema">No schema loaded.</div>';
+  document.getElementById('erHint').textContent = '';
+  erDiagramCache = null;
   try{ localStorage.removeItem('sql_playground_setup_sql'); } catch(e){}
 });
 runBtn.addEventListener('click', runQuery);
@@ -782,6 +1018,7 @@ runBtn.disabled = true;
 });
 
 // --- persist API key locally (works when this file is opened directly in a
+// browser; does not persist inside Claude.ai's sandboxed artifact preview) ---
 const apiKeyEl = document.getElementById('apiKey');
 try{
   const savedKey = localStorage.getItem('sql_playground_gemini_key');
@@ -814,6 +1051,40 @@ setupEl.addEventListener('input', () => {
       localStorage.removeItem('sql_playground_setup_sql');
     }
   } catch(e){ /* storage unavailable — ignore */ }
+});
+
+// --- vertical resizer between query editor and results panel ---
+const editorWrapEl = document.getElementById('editorWrap');
+const vResizerEl = document.getElementById('vResizer');
+const mainEl = document.querySelector('.main');
+let vResizing = false;
+
+vResizerEl.addEventListener('mousedown', (e) => {
+  vResizing = true;
+  vResizerEl.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'ns-resize';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if(!vResizing) return;
+  const mainRect = mainEl.getBoundingClientRect();
+  const resizerH = vResizerEl.getBoundingClientRect().height;
+  let newHeight = e.clientY - mainRect.top;
+  const minEditor = 110;
+  const minResults = 100;
+  const maxHeight = mainRect.height - resizerH - minResults;
+  newHeight = Math.max(minEditor, Math.min(maxHeight, newHeight));
+  editorWrapEl.style.height = newHeight + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if(!vResizing) return;
+  vResizing = false;
+  vResizerEl.classList.remove('dragging');
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
 });
 
 // --- sidebar collapse ---
@@ -868,6 +1139,7 @@ function renderThumbs(){
     wrap.appendChild(removeBtn);
     thumbsEl.appendChild(wrap);
   });
+  document.getElementById('clearImage').style.display = images.length > 0 ? '' : 'none';
 }
 
 function addImageFromBlob(blob){
