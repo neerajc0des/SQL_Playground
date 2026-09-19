@@ -1209,7 +1209,7 @@ async function resolveModelCandidates(apiKey){
   if(models.length === 0){
     throw new Error('No usable Gemini models found for this API key.');
   }
-  const preferredOrder = ['flash-latest', '2.5-flash', '2.0-flash', '1.5-flash', 'flash', 'pro-latest', 'pro'];
+  const preferredOrder = ['gemini-3.6-flash', '3.6-flash', 'gemini-1.5-flash', 'flash-latest', 'flash', 'pro-latest', 'pro'];
   const ranked = [];
   preferredOrder.forEach(pref => {
     models.forEach(m => {
@@ -1296,12 +1296,12 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
         break; // success
       } catch(e){
         lastError = e;
-        if(isOverloadedError(e.message) && i < candidates.length - 1){
-          geminiStatusEl.textContent = `${model} is overloaded, trying ${candidates[i + 1]}...`;
+        const isRetriable = isOverloadedError(e.message) || e.message.includes('no longer available');
+        if(isRetriable && i < candidates.length - 1){
+          geminiStatusEl.textContent = `${model} failed (${e.message.slice(0, 35)}...), trying ${candidates[i + 1]}...`;
           continue;
         }
-        if(!isOverloadedError(e.message)) throw e; // non-overload error: stop immediately
-        // overloaded and out of candidates: fall through to throw below
+        if(!isRetriable) throw e;
       }
     }
 
